@@ -219,6 +219,7 @@ my_context_delete(struct my_context *ctx)
  * the example. You can split your code into multiple functions, that usually
  * helps to keep the individual code blocks simple.
  */
+/*
 static void
 other_function(const char *name, int depth)
 {
@@ -227,7 +228,7 @@ other_function(const char *name, int depth)
 	if (depth < 3)
 		other_function(name, depth + 1);
 }
-
+*/
 
 /**
  * Coroutine body. This code is executed by all the coroutines. Here you
@@ -236,7 +237,6 @@ other_function(const char *name, int depth)
 static int
 coroutine_func_f(void *context)
 {
-	struct coro *this = coro_this();
 	struct my_context *ctx = context;
 	char *name = ctx->name;
 

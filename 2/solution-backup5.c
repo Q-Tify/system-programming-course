@@ -16,24 +16,6 @@
 #include <errno.h>
 
 
-int 
-is_exit_at_end(const struct command_line *line){
-    const struct expr *e = line->head;
-    while(e != NULL){
-        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
-            if(e->cmd.arg_count == 0){
-                return EXIT_SUCCESS;
-            } else {
-                return atoi(e->cmd.args[0]);
-            }
-        }
-        e = e->next;
-    }
-    
-    return -1;
-}
-
-
 int isFileDescriptorClosed(int fd) {
     return fcntl(fd, F_GETFD) == -1;
 }
@@ -74,7 +56,149 @@ get_program_name_with_args(struct command cmd){
 
 
 
-static int
+
+
+
+
+
+
+
+
+
+
+static void
+execute_command_line_workingwithfor(const struct command_line *line)
+{
+	assert(line != NULL);
+    
+
+	// if (line->out_type == OUTPUT_TYPE_STDOUT) {
+	// 	printf("stdout\n");
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_NEW) {
+	// 	printf("new file - \"%s\"\n", line->out_file);
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_APPEND) {
+	// 	printf("append file - \"%s\"\n", line->out_file);
+	// } else {
+	// 	assert(false);
+	// }
+
+    // Подсчет количества команд
+    // const struct expr *e = line->head;
+    // int number_of_commands = 0;
+	// while (e != NULL) {
+	// 	if (e->type == EXPR_TYPE_COMMAND) {
+    //         number_of_commands++;
+    //     }
+    //     e = e->next;
+    // }
+
+    int num_commands = 2;  // Number of commands in the pipeline
+    
+    //char* commands[] = {"ls", "grep", "wc"};
+
+    int pipes[num_commands - 1][2];
+
+    for (int i = 0; i < num_commands - 1; i++) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(1);
+        }
+    }
+
+    pid_t child_pid;
+
+    for (int i = 0; i < num_commands; i++) {
+        if ((child_pid = fork()) == -1) {
+            perror("fork");
+            exit(1);
+        }
+
+        if (child_pid == 0) {
+            if (i > 0) {
+                // Redirect stdin from the previous pipe
+                dup2(pipes[i - 1][0], STDIN_FILENO);
+                close(pipes[i - 1][0]);
+                close(pipes[i - 1][1]);
+            }
+
+            if (i < num_commands - 1) {
+                // Redirect stdout to the next pipe
+                dup2(pipes[i][1], STDOUT_FILENO);
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+
+            //Closing all other unused pipes
+            for (int i = 0; i < num_commands - 1; i++) {
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+            
+            // Execute the command
+            //yes bigdata | head -n 100000 | wc -l | tr -d [:blank:]
+            // if (i == 0){
+			// 	execlp("yes", "yes", "bigdata", NULL);
+			// }else if (i == 1) {
+			// 	execlp("head", "head", "-n", "100000", NULL);
+			// }else if (i == 2){
+			// 	execlp("wc", "wc", "-l", NULL);
+			// }else if (i == 3){
+            //     execlp("tr", "tr", "-d", "[:blank:]", NULL);
+            // }
+            //python3 test.py | exit 0  
+            if (i == 0){
+				execlp("python3", "python3", "test.py", NULL);
+                perror("execlp"); //ПОМЕНЯТЬ НА execvp
+                exit(1);
+			}else if (i == 1) {
+                exit(EXIT_SUCCESS);
+				//execlp("ls", "ls", NULL);
+			}
+
+
+            //execlp(commands[i], commands[i], (char*)NULL);
+
+            // If execlp fails, print an error message
+            
+        }
+    }
+
+    // Close all pipe ends in the parent process
+    for (int i = 0; i < num_commands - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    // Wait for all child processes to complete
+    while (wait(NULL) != -1 || errno != ECHILD);
+    // for (int i = 0; i < num_commands; i++) {
+    //     int status;
+    //     wait(&status);
+    // }
+
+	//const struct expr *e = line->head;
+	// while (e != NULL) {
+	// 	if (e->type == EXPR_TYPE_COMMAND) {
+	// 		printf("\tCommand: %s", e->cmd.exe);
+	// 		for (uint32_t i = 0; i < e->cmd.arg_count; ++i)
+	// 			printf(" %s", e->cmd.args[i]);
+	// 		printf("\n");
+	// 	} else if (e->type == EXPR_TYPE_PIPE) {
+	// 		printf("\tPIPE\n");
+	// 	} else if (e->type == EXPR_TYPE_AND) {
+	// 		printf("\tAND\n");
+	// 	} else if (e->type == EXPR_TYPE_OR) {
+	// 		printf("\tOR\n");
+	// 	} else {
+	// 		assert(false);
+	// 	}
+	// 	e = e->next;
+	// }
+}
+
+
+
+static void
 execute_command_line(const struct command_line *line)
 {
 	assert(line != NULL);
@@ -101,7 +225,6 @@ execute_command_line(const struct command_line *line)
     pid_t child_pid;
     int i_pipe = 0;
 	const struct expr *e = line->head;
-    char **combined_args = NULL;
 
 	while (e != NULL) {
 		if (e->type == EXPR_TYPE_COMMAND) {
@@ -159,20 +282,19 @@ execute_command_line(const struct command_line *line)
                     
                     
                     if (strcmp("exit", e->cmd.exe) == 0){
-                        if(e->cmd.arg_count == 0){
+                        if(e->cmd.args[0] == NULL){
                             exit(EXIT_SUCCESS);
                         } else {
                             exit(atoi(e->cmd.args[0]));
                         }
                     }else{
-                        combined_args = get_program_name_with_args(e->cmd);
+                        char **combined_args = get_program_name_with_args(e->cmd);
                         execvp(combined_args[0], combined_args);
                         perror("execvp");
-                        exit(EXIT_FAILURE);
+                        exit(EXIT_SUCCESS);
                     }
                 }
             }
-            //Should I move it?
             i_pipe++;
 		} else if (e->type == EXPR_TYPE_PIPE) {
 			//printf("\tPIPE\n");
@@ -194,56 +316,26 @@ execute_command_line(const struct command_line *line)
 
     // Wait for all child processes to complete
     while (wait(NULL) != -1 || errno != ECHILD);
-
-    int return_value = is_exit_at_end(line);
-    if (return_value == -1){
-        return 0;
-    } else {
-        return return_value;
-    }
+    //printf("done\n");
+    // printf("================================\n");
+	// printf("Command line:\n");
+	// printf("Is background: %d\n", (int)line->is_background);
+	// printf("Output: ");
+	// if (line->out_type == OUTPUT_TYPE_STDOUT) {
+	// 	printf("stdout\n");
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_NEW) {
+	// 	printf("new file - \"%s\"\n", line->out_file);
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_APPEND) {
+	// 	printf("append file - \"%s\"\n", line->out_file);
+	// } else {
+	// 	assert(false);
+	// }
 }
-
-/*
-void
-exit_terminal_s(struct command_line *line){
-    
-    
-    //printf("The value of the pointer is: %s\n", (*line)->head->cmd.args[0]);
-    
-    //if((*line)->head->cmd.args[0] == NULL){
-    //     exit_code = EXIT_SUCCESS;
-    //} // else {
-    //     exit_code = atoi(line->head->cmd.args[0]);
-    // }
-    //command_line_delete(line);
-    //parser_delete(p);
-    exit(0);
-}
-
-static void
-exit_terminal(const struct command_line *line)
-{
-	assert(line != NULL);
-
-	const struct expr *e = line->head;
-
-	while (e != NULL) {
-		if (e->type == EXPR_TYPE_COMMAND) {
-			printf("\tCommand: %s", e->cmd.exe);
-			for (uint32_t i = 0; i < e->cmd.arg_count; ++i)
-				printf(" %s", e->cmd.args[i]);
-			printf("\n");
-        }
-    }
-}
-
-
-
 
 
 
 int
-main_old(void)
+main(void)
 {   
     int exit_code = 0;
 
@@ -289,7 +381,7 @@ main_old(void)
                 }
             }
 
-            //execute_command_line(line);
+            execute_command_line(line);
 			command_line_delete(line);
             // break; //remove
 		}
@@ -297,77 +389,4 @@ main_old(void)
 	}
 	parser_delete(p);
 	return 0;
-}
-*/
-
-int 
-is_exit(struct command_line *line){
-    //If there is more than one command
-    if (line->head->next != NULL){
-        return -1;
-    }
-
-    //If it is not exit
-    if (line->head->type == EXPR_TYPE_COMMAND) {
-        if (strcmp(line->head->cmd.exe, "exit") != 0){
-            return -1;
-        }
-    }
-
-    int exit_code;
-	const struct expr *e = line->head;
-    if(e->cmd.arg_count == 0){
-        return EXIT_SUCCESS;
-    } else {
-        return atoi(e->cmd.args[0]);
-    }
-
-    
-    return -1;
-}
-
-
-
-static void
-exit_terminal(struct command_line **line, struct parser **p, int exit_code)
-{
-    if(exit_code != -1){
-        parser_delete(*p);
-        command_line_delete(*line);
-        exit(exit_code);
-    }
-}
-
-
-int
-main(void)
-{
-    int exit_code;
-	const size_t buf_size = 1024;
-	char buf[buf_size];
-	int rc;
-	struct parser *p = parser_new();
-	while ((rc = read(STDIN_FILENO, buf, buf_size)) > 0) {
-		parser_feed(p, buf, rc);
-		struct command_line *line = NULL;
-		while (true) {
-			enum parser_error err = parser_pop_next(p, &line);
-			if (err == PARSER_ERR_NONE && line == NULL)
-				break;
-			if (err != PARSER_ERR_NONE) {
-				printf("Error: %d\n", (int)err);
-				continue;
-			}
-
-            exit_terminal(&line, &p, is_exit(line));
-
-            exit_code = execute_command_line(line);
-            
-
-			command_line_delete(line);
-		}
-	}
-	parser_delete(p);
-
-	return exit_code;
 }

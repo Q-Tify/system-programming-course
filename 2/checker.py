@@ -97,8 +97,6 @@ def exit_failure():
 
 command = ''
 for section_i, section in enumerate(tests, 1):
-	if section_i == 5 or section_i == 6:
-		break
 	if section_i == 5 and args.max == 15:
 		break
 	if section_i == 6 and args.max != 25:
@@ -109,6 +107,7 @@ for section_i, section in enumerate(tests, 1):
 		command += '{}\n'.format(test)
 
 #print(command)
+
 p = open_new_shell()
 try:
 	output = p.communicate(command.encode(), 3)[0].decode()
@@ -171,6 +170,7 @@ for test in tests:
 		exit_failure()
 
 # Exit code should be from the last used command.
+
 tests = [
 (["ls /"], 0),
 (["ls / | exit 123"], 123),

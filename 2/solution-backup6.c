@@ -16,24 +16,6 @@
 #include <errno.h>
 
 
-int 
-is_exit_at_end(const struct command_line *line){
-    const struct expr *e = line->head;
-    while(e != NULL){
-        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
-            if(e->cmd.arg_count == 0){
-                return EXIT_SUCCESS;
-            } else {
-                return atoi(e->cmd.args[0]);
-            }
-        }
-        e = e->next;
-    }
-    
-    return -1;
-}
-
-
 int isFileDescriptorClosed(int fd) {
     return fcntl(fd, F_GETFD) == -1;
 }
@@ -74,7 +56,7 @@ get_program_name_with_args(struct command cmd){
 
 
 
-static int
+static void
 execute_command_line(const struct command_line *line)
 {
 	assert(line != NULL);
@@ -168,7 +150,7 @@ execute_command_line(const struct command_line *line)
                         combined_args = get_program_name_with_args(e->cmd);
                         execvp(combined_args[0], combined_args);
                         perror("execvp");
-                        exit(EXIT_FAILURE);
+                        exit(EXIT_SUCCESS);
                     }
                 }
             }
@@ -195,12 +177,21 @@ execute_command_line(const struct command_line *line)
     // Wait for all child processes to complete
     while (wait(NULL) != -1 || errno != ECHILD);
 
-    int return_value = is_exit_at_end(line);
-    if (return_value == -1){
-        return 0;
-    } else {
-        return return_value;
-    }
+    free(combined_args);
+    //printf("done\n");
+    // printf("================================\n");
+	// printf("Command line:\n");
+	// printf("Is background: %d\n", (int)line->is_background);
+	// printf("Output: ");
+	// if (line->out_type == OUTPUT_TYPE_STDOUT) {
+	// 	printf("stdout\n");
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_NEW) {
+	// 	printf("new file - \"%s\"\n", line->out_file);
+	// } else if (line->out_type == OUTPUT_TYPE_FILE_APPEND) {
+	// 	printf("append file - \"%s\"\n", line->out_file);
+	// } else {
+	// 	assert(false);
+	// }
 }
 
 /*
@@ -304,45 +295,66 @@ int
 is_exit(struct command_line *line){
     //If there is more than one command
     if (line->head->next != NULL){
-        return -1;
+        return 0;
     }
 
     //If it is not exit
     if (line->head->type == EXPR_TYPE_COMMAND) {
         if (strcmp(line->head->cmd.exe, "exit") != 0){
-            return -1;
+            return 0;
         }
     }
+    return 1;
+}
 
-    int exit_code;
-	const struct expr *e = line->head;
-    if(e->cmd.arg_count == 0){
-        return EXIT_SUCCESS;
-    } else {
-        return atoi(e->cmd.args[0]);
+int 
+is_exit_at_end(struct command_line *line){
+    const struct expr *e = line->head;
+    while(e != NULL){
+        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
+            if(e->cmd.arg_count == 0){
+                return EXIT_SUCCESS;
+            } else {
+                return atoi(e->cmd.args[0]);
+            }
+        }
+        e = e->next;
     }
-
     
     return -1;
 }
 
-
-
 static void
-exit_terminal(struct command_line **line, struct parser **p, int exit_code)
+exit_terminal(struct command_line **line, struct parser **p)
 {
-    if(exit_code != -1){
-        parser_delete(*p);
-        command_line_delete(*line);
-        exit(exit_code);
+    int exit_code;
+	const struct expr *e = (*line)->head;
+    if(e->cmd.arg_count == 0){
+        exit_code = EXIT_SUCCESS;
+    } else {
+        exit_code = atoi(e->cmd.args[0]);
     }
+    parser_delete(*p);
+    command_line_delete(*line);
+    exit(exit_code);
 }
 
+static void
+exit_after_proccess_signal(struct command_line **line, struct parser **p, int exit_signal)
+{   
+    if(exit_signal != -1){
+        parser_delete(*p);
+        command_line_delete(*line);
+        exit(exit_signal);
+    }
+}
 
 int
 main(void)
 {
-    int exit_code;
+    int exit_signal_code = -1;
+    //int *p_exit_signal = exit_signal_code;
+
 	const size_t buf_size = 1024;
 	char buf[buf_size];
 	int rc;
@@ -359,15 +371,13 @@ main(void)
 				continue;
 			}
 
-            exit_terminal(&line, &p, is_exit(line));
-
-            exit_code = execute_command_line(line);
-            
-
+            execute_command_line(line);
+            if(is_exit(line)){
+                exit_terminal(&line, &p);
+            }
 			command_line_delete(line);
 		}
 	}
 	parser_delete(p);
-
-	return exit_code;
+	return 0;
 }

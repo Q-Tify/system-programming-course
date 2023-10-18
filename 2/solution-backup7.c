@@ -16,24 +16,6 @@
 #include <errno.h>
 
 
-int 
-is_exit_at_end(const struct command_line *line){
-    const struct expr *e = line->head;
-    while(e != NULL){
-        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
-            if(e->cmd.arg_count == 0){
-                return EXIT_SUCCESS;
-            } else {
-                return atoi(e->cmd.args[0]);
-            }
-        }
-        e = e->next;
-    }
-    
-    return -1;
-}
-
-
 int isFileDescriptorClosed(int fd) {
     return fcntl(fd, F_GETFD) == -1;
 }
@@ -74,7 +56,7 @@ get_program_name_with_args(struct command cmd){
 
 
 
-static int
+static void
 execute_command_line(const struct command_line *line)
 {
 	assert(line != NULL);
@@ -168,7 +150,7 @@ execute_command_line(const struct command_line *line)
                         combined_args = get_program_name_with_args(e->cmd);
                         execvp(combined_args[0], combined_args);
                         perror("execvp");
-                        exit(EXIT_FAILURE);
+                        exit(EXIT_SUCCESS);
                     }
                 }
             }
@@ -194,13 +176,7 @@ execute_command_line(const struct command_line *line)
 
     // Wait for all child processes to complete
     while (wait(NULL) != -1 || errno != ECHILD);
-
-    int return_value = is_exit_at_end(line);
-    if (return_value == -1){
-        return 0;
-    } else {
-        return return_value;
-    }
+    
 }
 
 /*
@@ -326,7 +302,22 @@ is_exit(struct command_line *line){
     return -1;
 }
 
-
+int 
+is_exit_at_end(struct command_line *line){
+    const struct expr *e = line->head;
+    while(e != NULL){
+        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
+            if(e->cmd.arg_count == 0){
+                return EXIT_SUCCESS;
+            } else {
+                return atoi(e->cmd.args[0]);
+            }
+        }
+        e = e->next;
+    }
+    
+    return -1;
+}
 
 static void
 exit_terminal(struct command_line **line, struct parser **p, int exit_code)
@@ -342,7 +333,9 @@ exit_terminal(struct command_line **line, struct parser **p, int exit_code)
 int
 main(void)
 {
-    int exit_code;
+    int exit_signal_code = -1;
+    //int *p_exit_signal = exit_signal_code;
+
 	const size_t buf_size = 1024;
 	char buf[buf_size];
 	int rc;
@@ -359,15 +352,13 @@ main(void)
 				continue;
 			}
 
+            execute_command_line(line);
             exit_terminal(&line, &p, is_exit(line));
-
-            exit_code = execute_command_line(line);
-            
+            //exit_terminal(&line, &p, is_exit_at_end(line));
 
 			command_line_delete(line);
 		}
 	}
 	parser_delete(p);
-
-	return exit_code;
+	return 0;
 }

@@ -16,6 +16,23 @@
 #include <errno.h>
 
 
+int 
+is_exit_at_end(const struct command_line *line){
+    const struct expr *e = line->head;
+    while(e != NULL){
+        if (e->next == NULL && e->type == EXPR_TYPE_COMMAND && strcmp(e->cmd.exe, "exit") == 0){
+            if(e->cmd.arg_count == 0){
+                return EXIT_SUCCESS;
+            } else {
+                return atoi(e->cmd.args[0]);
+            }
+        }
+        e = e->next;
+    }
+    
+    return -1;
+}
+
 
 int isFileDescriptorClosed(int fd) {
     return fcntl(fd, F_GETFD) == -1;
@@ -63,7 +80,7 @@ execute_command_line(const struct command_line *line)
 	assert(line != NULL);
     
     //Counting the number of commands in line
-    struct expr *e_for_count = line->head;
+    const struct expr *e_for_count = line->head;
     int number_of_commands = 0;
 	while (e_for_count != NULL) {
 		if (e_for_count->type == EXPR_TYPE_COMMAND) {
@@ -185,11 +202,92 @@ execute_command_line(const struct command_line *line)
             last_exit_status = last_child_exit_status;
         }
         //printf("CHILD %d with status %d\n", (int)pid, last_child_exit_status);
-    }
+    };
 
     return last_exit_status;
 }
 
+/*
+
+static void
+exit_terminal(const struct command_line *line)
+{
+	assert(line != NULL);
+
+	const struct expr *e = line->head;
+
+	while (e != NULL) {
+		if (e->type == EXPR_TYPE_COMMAND) {
+			printf("\tCommand: %s", e->cmd.exe);
+			for (uint32_t i = 0; i < e->cmd.arg_count; ++i)
+				printf(" %s", e->cmd.args[i]);
+			printf("\n");
+        }
+    }
+}
+
+
+
+
+
+
+int
+main_old(void)
+{   
+    int exit_code = 0;
+
+
+	const size_t buf_size = 1024;
+	char buf[buf_size];
+	int rc;
+	struct parser *p = parser_new();
+	while ((rc = read(STDIN_FILENO, buf, buf_size)) > 0) {
+		parser_feed(p, buf, rc);
+		struct command_line *line = NULL;
+		while (true) {
+			enum parser_error err = parser_pop_next(p, &line);
+			if (err == PARSER_ERR_NONE && line == NULL)
+				break;
+			if (err != PARSER_ERR_NONE) {
+				printf("Error: %d\n", (int)err);
+				continue;
+			}
+
+            const struct expr *e_for_count = line->head;
+            int number_of_commands = 0;
+            while (e_for_count != NULL) {
+                if (e_for_count->type == EXPR_TYPE_COMMAND) {
+                    number_of_commands++;
+                }
+                e_for_count = e_for_count->next;
+            }
+
+
+            const struct expr *e_for_exit = line->head;
+            if (number_of_commands == 1){
+                if (strcmp("exit", e_for_exit->cmd.exe) == 0){
+                    if(e_for_exit->cmd.args[0] == NULL){
+                        //exit(0);
+                    } else {
+                        exit_code = atoi(e_for_exit->cmd.args[0]);
+                        //exit(atoi(e_for_exit->cmd.args[0]));
+                    }
+                    command_line_delete(line);
+                    parser_delete(p);
+                    exit(exit_code);
+                }
+            }
+
+            //execute_command_line(line);
+			command_line_delete(line);
+            // break; //remove
+		}
+        // break; //remove
+	}
+	parser_delete(p);
+	return 0;
+}
+*/
 
 int 
 is_exit(struct command_line *line){
@@ -205,7 +303,7 @@ is_exit(struct command_line *line){
         }
     }
 
-	struct expr *e = line->head;
+	const struct expr *e = line->head;
     if(e->cmd.arg_count == 0){
         return EXIT_SUCCESS;
     } else {
@@ -216,6 +314,17 @@ is_exit(struct command_line *line){
     return -1;
 }
 
+
+
+static void
+exit_terminal(struct command_line **line, struct parser **p, int exit_code)
+{
+    if(exit_code != -1){
+        parser_delete(*p);
+        command_line_delete(*line);
+        exit(exit_code);
+    }
+}
 
 
 int
@@ -239,11 +348,7 @@ main(void)
 			}
 
             //If exit is alone in line
-            if((exit_code = is_exit(line)) != -1){
-                command_line_delete(line);
-                parser_delete(p);
-                exit(exit_code);
-            }
+            exit_terminal(&line, &p, is_exit(line));
 
             exit_code = execute_command_line(line);
 

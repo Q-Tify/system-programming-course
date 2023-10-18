@@ -106,8 +106,6 @@ for section_i, section in enumerate(tests, 1):
 		command += 'echo "$> Test {}"\n'.format(test_i)
 		command += '{}\n'.format(test)
 
-#print(command)
-
 p = open_new_shell()
 try:
 	output = p.communicate(command.encode(), 3)[0].decode()
@@ -170,7 +168,6 @@ for test in tests:
 		exit_failure()
 
 # Exit code should be from the last used command.
-
 tests = [
 (["ls /"], 0),
 (["ls / | exit 123"], 123),

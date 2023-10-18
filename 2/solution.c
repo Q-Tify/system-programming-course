@@ -58,7 +58,7 @@ get_program_name_with_args(struct command cmd){
 
 
 static int
-execute_command_line(const struct command_line *line)
+execute_command_line(struct command_line *line, struct parser *p)
 {
 	assert(line != NULL);
     
@@ -142,9 +142,14 @@ execute_command_line(const struct command_line *line)
                     
                     if (strcmp("exit", e->cmd.exe) == 0){
                         if(e->cmd.arg_count == 0){
+                            parser_delete(p);
+                            command_line_delete(line);
                             exit(EXIT_SUCCESS);
                         } else {
-                            exit(atoi(e->cmd.args[0]));
+                            int some_x = atoi(e->cmd.args[0]);
+                            parser_delete(p);
+                            command_line_delete(line);
+                            exit(some_x);
                         }
                     }else{
                         combined_args = get_program_name_with_args(e->cmd);
@@ -245,7 +250,7 @@ main(void)
                 exit(exit_code);
             }
 
-            exit_code = execute_command_line(line);
+            exit_code = execute_command_line(line, p);
 
 			command_line_delete(line);
 		}

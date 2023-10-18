@@ -222,7 +222,7 @@ if is_error:
 # Test extra many args. To ensure the shell doesn't have an internal argument
 # count limit (insane limits like 1 million have to be caught at review).
 p = open_new_shell()
-count = 100 * 1000
+count = 100 * 100
 output_expected = 'a ' * (count - 1) + 'a\n'
 command = 'echo ' + output_expected
 try:

@@ -24,6 +24,7 @@
  * because it is used by tests.
  */
 #define NEED_OPEN_FLAGS
+#define NEED_RESIZE
 
 
 /**
